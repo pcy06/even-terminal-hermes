@@ -16,6 +16,7 @@ const LOCAL_UPSTREAM_TARBALL = `evenrealities-even-terminal-${UPSTREAM_VERSION}.
 interface FakeRun {
   input: unknown;
   instructions: unknown;
+  conversationHistory: unknown;
   approvalResolved: boolean;
   approvalResponse: Record<string, unknown> | null;
 }
@@ -72,6 +73,7 @@ async function startFakeHermes(): Promise<{
       runs.set(runId, {
         input: body.input,
         instructions: body.instructions,
+        conversationHistory: body.conversation_history,
         approvalResolved: false,
         approvalResponse: null,
       });
@@ -290,6 +292,7 @@ async function main(): Promise<void> {
       throw new Error("Expected fake Hermes to receive a run");
     }
     assert.equal(firstRun.instructions, "Answer briefly in plain text.");
+    assert.equal(firstRun.conversationHistory, undefined);
     assert.equal(firstRun.approvalResponse?.choice, "session");
 
     const completed = await waitFor(async () => {
@@ -327,6 +330,42 @@ async function main(): Promise<void> {
       { role: "user", text: "Say hello" },
       { role: "assistant", text: "Hello from Hermes" },
     ]);
+
+    const lastMessageId = Math.max(0, ...completed.messages.map((msg) => Number(msg.id) || 0));
+    const secondPrompt = await requestJson<{ sessionId: string }>(base, "/api/prompt", {
+      method: "POST",
+      body: JSON.stringify({ sessionId, text: "Use the previous answer" }),
+    });
+    assert.equal(secondPrompt.response.status, 202);
+    assert.equal(secondPrompt.body.sessionId, sessionId);
+
+    await waitFor(async () => {
+      const messages = await requestJson<{ messages: Array<{ type: string }> }>(
+        base,
+        `/api/messages?sessionId=${encodeURIComponent(sessionId)}&after=${lastMessageId}`,
+      );
+      return messages.body.messages.some((msg) => msg.type === "permission_request") && messages.body;
+    });
+    const secondRun = [...fakeHermes.runs.values()][1];
+    if (!secondRun) {
+      throw new Error("Expected fake Hermes to receive a second run");
+    }
+    assert.deepEqual(secondRun.conversationHistory, [
+      { role: "user", content: "Say hello" },
+      { role: "assistant", content: "Hello from Hermes" },
+    ]);
+    const secondApproval = await requestJson(base, "/api/permission-response", {
+      method: "POST",
+      body: JSON.stringify({ sessionId, decision: "deny" }),
+    });
+    assert.equal(secondApproval.response.status, 200);
+    await waitFor(async () => {
+      const messages = await requestJson<{ messages: Array<{ type: string }> }>(
+        base,
+        `/api/messages?sessionId=${encodeURIComponent(sessionId)}&after=${lastMessageId}`,
+      );
+      return messages.body.messages.some((msg) => msg.type === "result") && messages.body;
+    });
 
     const status = await requestJson<{ state: string }>(base, `/api/status?sessionId=${encodeURIComponent(sessionId)}`);
     assert.equal(status.body.state, "idle");

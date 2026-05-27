@@ -264,6 +264,7 @@ export class EvenHermesBridge {
 
   /** Start a Hermes run and stream its lifecycle into Even messages. */
   private async startPrompt(session: Session, text: string): Promise<void> {
+    const conversationHistory = session.history.slice();
     session.status = "busy";
     session.currentAssistantText = "";
     session.runningStartedAt = Date.now();
@@ -284,6 +285,7 @@ export class EvenHermesBridge {
       sessionId: session.id,
       text,
       instructions: this.options.instructions,
+      conversationHistory,
     });
     session.currentRunId = runId;
     this.persist();

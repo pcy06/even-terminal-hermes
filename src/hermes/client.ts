@@ -167,11 +167,17 @@ export class HermesClient {
   /** Start a Hermes run and return its run id. */
   async startRun(params: StartRunParams): Promise<string> {
     await this.ensureReady();
+    const conversationHistory = params.conversationHistory
+      .filter((entry) => (entry.role === "user" || entry.role === "assistant") && entry.text.trim())
+      .map((entry) => ({ role: entry.role, content: entry.text }));
     const body: Record<string, unknown> = {
       input: params.text,
       session_id: params.sessionId,
       model: "hermes-agent",
     };
+    if (conversationHistory.length > 0) {
+      body.conversation_history = conversationHistory;
+    }
     if (params.instructions) {
       body.instructions = params.instructions;
     }

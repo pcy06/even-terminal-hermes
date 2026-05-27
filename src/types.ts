@@ -266,4 +266,13 @@ export interface StartRunParams {
   sessionId: string;
   text: string;
   instructions: string;
+  /**
+   * Prior bridge-local transcript for this Even session.
+   *
+   * Hermes `/v1/runs` does not hydrate short-term context from `session_id`
+   * alone. That id labels the run, approval scope, and memory/session storage;
+   * the caller must provide previous turns through `conversation_history` (or
+   * `previous_response_id`) when it wants the agent to see the conversation.
+   */
+  conversationHistory: HistoryItem[];
 }

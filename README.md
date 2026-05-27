@@ -140,6 +140,12 @@ Even Terminal also has no separate `reasoning` SSE message type, so mapping the
 payload to `notification` makes the Even App render a fake `Reasoning: ...`
 block that duplicates the final assistant output.
 
+Hermes `/v1/runs` does not reconstruct short-term context from `session_id`
+alone. The bridge therefore sends the prior Even session transcript as
+`conversation_history` on each run. The `session_id` and
+`X-Hermes-Session-Key` are still sent for Hermes run labeling, approval scope,
+and long-term memory scoping.
+
 ## Known Limits
 
 `POST /api/question-response` is implemented for Even compatibility and records
