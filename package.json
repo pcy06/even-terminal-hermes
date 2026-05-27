@@ -1,0 +1,48 @@
+{
+  "name": "even-hermes-terminal",
+  "version": "0.1.0",
+  "license": "MIT",
+  "type": "module",
+  "description": "Even Terminal compatible bridge backed by local Hermes Agent",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pcy06/even-terminal-hermes.git"
+  },
+  "bugs": {
+    "url": "https://github.com/pcy06/even-terminal-hermes/issues"
+  },
+  "homepage": "https://github.com/pcy06/even-terminal-hermes#readme",
+  "keywords": [
+    "even-realities",
+    "even-terminal",
+    "hermes-agent",
+    "smart-glasses",
+    "sse"
+  ],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "bin": {
+    "even-hermes-terminal": "dist/src/cli.js"
+  },
+  "scripts": {
+    "build": "npm run clean && tsc -p tsconfig.build.json",
+    "check": "npm run typecheck && npm test",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "dev": "tsx src/cli.ts",
+    "prepublishOnly": "npm run build && npm test",
+    "start": "node dist/src/cli.js",
+    "test": "tsx test/contract.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "tsx": "^4.22.3",
+    "typescript": "^6.0.3"
+  }
+}

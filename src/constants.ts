@@ -1,0 +1,12 @@
+export const VERSION = "0.1.0";
+export const PACKAGE_NAME = "even-hermes-terminal";
+export const DEFAULT_PORT = 3456;
+export const DEFAULT_HOST = "0.0.0.0";
+export const DEFAULT_HERMES_URL = "http://127.0.0.1:8642";
+export const DEFAULT_WIRE_PROVIDER = "codex";
+export const MAX_MESSAGES_PER_SESSION = 500;
+export const MAX_HISTORY_ITEMS = 100;
+export const HERMES_BOOT_TIMEOUT_MS = 45_000;
+export const SSE_HEARTBEAT_MS = 15_000;
+export const RUNNING_STATS_INTERVAL_MS = 10_000;
+export const HERMES_HEALTH_TIMEOUT_MS = 1_500;
