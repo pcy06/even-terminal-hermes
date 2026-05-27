@@ -175,6 +175,70 @@ async function waitFor<T>(predicate: () => Promise<T | false | null | undefined>
   throw new Error("Timed out waiting for condition");
 }
 
+async function readSseReplay(
+  base: string,
+  sessionId: string,
+  lastEventId: number,
+  until: (messages: Array<Record<string, unknown>>) => boolean,
+): Promise<Array<Record<string, unknown>>> {
+  const controller = new AbortController();
+  const response = await fetch(`${base}/api/events?sessionId=${encodeURIComponent(sessionId)}`, {
+    headers: {
+      Authorization: `Bearer ${TOKEN}`,
+      "Last-Event-ID": String(lastEventId),
+    },
+    signal: controller.signal,
+  });
+  assert.equal(response.status, 200);
+  if (!response.body) {
+    throw new Error("Expected SSE response body");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  const messages: Array<Record<string, unknown>> = [];
+  let buffer = "";
+  const started = Date.now();
+  try {
+    while (Date.now() - started < 3_000) {
+      const read = await Promise.race([
+        reader.read(),
+        new Promise<ReadableStreamReadResult<Uint8Array>>((_, reject) => {
+          setTimeout(() => reject(new Error("Timed out reading SSE replay")), 1_000);
+        }),
+      ]);
+      if (read.done) {
+        break;
+      }
+      buffer += decoder.decode(read.value, { stream: true });
+      while (true) {
+        const frameEnd = buffer.indexOf("\n\n");
+        if (frameEnd === -1) {
+          break;
+        }
+        const frame = buffer.slice(0, frameEnd);
+        buffer = buffer.slice(frameEnd + 2);
+        const data = frame
+          .split("\n")
+          .filter((line) => line.startsWith("data:"))
+          .map((line) => line.slice(5).trimStart())
+          .join("\n");
+        if (!data) {
+          continue;
+        }
+        messages.push(JSON.parse(data) as Record<string, unknown>);
+        if (until(messages)) {
+          return messages;
+        }
+      }
+    }
+  } finally {
+    controller.abort();
+    await reader.cancel().catch(() => undefined);
+  }
+  throw new Error("SSE replay did not reach expected message");
+}
+
 function upstreamTarball(): { path: string; cleanup: () => void } {
   if (existsSync(LOCAL_UPSTREAM_TARBALL)) {
     return { path: LOCAL_UPSTREAM_TARBALL, cleanup: () => undefined };
@@ -324,6 +388,17 @@ async function main(): Promise<void> {
     assert.equal(result.outputTokens, 4);
     assert.equal(result.reasoningTokens, 0);
     assert.equal(result.totalTokens, 7);
+
+    const toolStart = completed.messages.find((msg) => msg.type === "tool_start");
+    if (!toolStart) {
+      throw new Error("Expected bridge to emit a tool_start message");
+    }
+    const replayed = await readSseReplay(base, sessionId, Number(toolStart.id), (messages) => {
+      return messages.some((message) => message.type === "result");
+    });
+    assert.equal(replayed.some((message) => message.type === "tool_start"), false);
+    assert.equal(replayed[0]?.type, "tool_end");
+    assert.equal(replayed.some((message) => message.type === "result"), true);
 
     const history = await requestJson<{ history: Array<{ role: string; text: string }> }>(base, `/api/sessions/${encodeURIComponent(sessionId)}/history`);
     assert.deepEqual(history.body.history.slice(-2), [

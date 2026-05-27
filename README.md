@@ -133,6 +133,11 @@ result
 error
 ```
 
+`GET /api/events` also honors the standard SSE `Last-Event-ID` header. When the
+Even App reconnects after seeing a message such as `tool_start`, the bridge
+replays only buffered messages with larger ids so long-running tool calls do not
+leave the glasses stuck on the last event seen before a transient disconnect.
+
 Hermes `reasoning.available` events are not mapped to Even `notification`
 messages. In Hermes `/v1/runs`, this event currently comes from the tool
 progress path and can contain `assistant_message.content`, not true reasoning.

@@ -68,8 +68,13 @@ export function attachEvenSseClient(req: IncomingMessage, res: ServerResponse, s
   });
   res.write(":ok\n\n");
 
-  if (needReplay) {
-    for (const entry of session.messages) {
+  const replayAfter = replayAfterId(req, needReplay);
+  if (replayAfter !== null) {
+    // EventSource reconnects with Last-Event-ID after transient network drops.
+    // Even glasses often sit through long tool calls on mobile links, so replay
+    // only the missed ring-buffer entries instead of leaving the UI stuck on the
+    // last tool_start it saw.
+    for (const entry of session.messages.filter((message) => message.id > replayAfter)) {
       res.write(`id: ${entry.id}\ndata: ${JSON.stringify(entry.msg)}\n\n`);
     }
   }
@@ -93,4 +98,17 @@ export function attachEvenSseClient(req: IncomingMessage, res: ServerResponse, s
 /** Send the standard missing-session-id error used by Even Terminal. */
 export function missingSessionId(res: ServerResponse): void {
   jsonResponse(res, 400, { error: "Missing 'sessionId' query parameter" });
+}
+
+function replayAfterId(req: IncomingMessage, needReplay: boolean): number | null {
+  if (needReplay) {
+    return 0;
+  }
+  const header = req.headers["last-event-id"];
+  const value = Array.isArray(header) ? header[0] : header;
+  if (!value) {
+    return null;
+  }
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }
